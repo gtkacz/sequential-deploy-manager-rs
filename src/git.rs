@@ -5,10 +5,10 @@ use anyhow::{Context, Result};
 pub struct Git;
 
 impl Git {
-    pub fn run_deploy(repo_path: &Path, commit_message: &str) -> Result<()> {
-        // 1. Switch to dev branch
-        Self::run_command(repo_path, "git", &["checkout", "dev"])
-            .context("Failed to checkout dev branch")?;
+    pub fn run_deploy(repo_path: &Path, branch_name: &str, commit_message: &str) -> Result<()> {
+        // 1. Switch to target branch
+        Self::run_command(repo_path, "git", &["checkout", branch_name])
+            .context(format!("Failed to checkout {} branch", branch_name))?;
 
         // 2. Pull latest changes
         Self::run_command(repo_path, "git", &["pull"])

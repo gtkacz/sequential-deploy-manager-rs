@@ -17,6 +17,18 @@ pub struct Group {
 pub struct Config {
     pub groups: Vec<Group>,
     pub root_path: Option<String>,
+    #[serde(default = "default_branch")]
+    pub branch: String,
+    #[serde(default = "default_commit_message")]
+    pub commit_message: String,
+}
+
+fn default_branch() -> String {
+    "dev".to_string()
+}
+
+fn default_commit_message() -> String {
+    "Force deploy of dev".to_string()
 }
 
 impl Config {

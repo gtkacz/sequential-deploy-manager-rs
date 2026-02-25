@@ -42,7 +42,9 @@ async fn main() -> Result<()> {
         { "path": "repo3", "delta": 0.1 }
       ]
     }
-  ]
+  ],
+  "branch": "dev",
+  "commit_message": "Force deploy of dev"
 }"#;
         std::fs::write(&args.config, sample_config)?;
     }
@@ -81,6 +83,8 @@ async fn main() -> Result<()> {
                 let repo_path = root_path.join(&repo.path);
                 let repo_path_clone = repo_path.clone();
                 let repo_name = repo.path.clone();
+                let branch_name = config.branch.clone();
+                let commit_msg = config.commit_message.clone();
 
                 // Check existence - already validated in TUI but good to check again
                 if !Git::check_exists(&repo_path) {
@@ -92,7 +96,7 @@ async fn main() -> Result<()> {
                 
                 let handle = tokio::spawn(async move {
                     println!("Running {}", repo_name);
-                    match Git::run_deploy(&repo_path_clone, "Force deploy of dev") {
+                    match Git::run_deploy(&repo_path_clone, &branch_name, &commit_msg) {
                         Ok(_) => println!("Successfully deployed {}", repo_name),
                         Err(e) => eprintln!("Failed to deploy {}: {:?}", repo_name, e),
                     }

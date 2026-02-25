@@ -85,6 +85,7 @@ impl App {
                             KeyCode::Down => self.move_cursor_down(),
                             KeyCode::Up => self.move_cursor_up(),
                             KeyCode::Char(' ') => self.toggle_selection(),
+                            KeyCode::Char('c') => self.selected_repos.clear(),
                             KeyCode::Enter => {
                                 if self.selected_repos.is_empty() {
                                     self.error_message = Some("No repositories selected. Please select at least one.".to_string());
@@ -347,7 +348,7 @@ impl App {
 
     fn render_footer(&self, f: &mut ratatui::Frame, area: Rect) {
         let help_text = match self.view {
-            View::Selection => "↑/↓: Navigate | Space: Toggle | Enter: Next | q: Quit | Ctrl+c: Exit",
+            View::Selection => "↑/↓: Navigate | Space: Toggle | c: Clear All | Enter: Next | q: Quit | Ctrl+c: Exit",
             View::RootPrompt => "Enter: Confirm | Esc: Back | Ctrl+c: Exit",
             View::Confirmation => "y/Enter: Yes | n: No | Esc: Back | Ctrl+c: Exit",
             View::Error => "Enter/Esc: Dismiss | Ctrl+c: Exit",
