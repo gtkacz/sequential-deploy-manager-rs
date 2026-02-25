@@ -4,6 +4,16 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use clap::Parser;
 use tokio::time::sleep;
+use std::process::{Command, Stdio};
+use std::fs::File;
+use std::collections::HashSet;
+use crossterm::{
+    event::{self, Event, KeyCode},
+    terminal::{enable_raw_mode, disable_raw_mode},
+};
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 
 mod config;
 mod git;
@@ -19,6 +29,14 @@ struct Args {
     /// Path to the configuration file
     #[arg(short, long, default_value = "config.json")]
     config: PathBuf,
+
+    /// Run in headless mode (no TUI)
+    #[arg(long, default_value_t = false)]
+    headless: bool,
+
+    /// Delete config file after execution
+    #[arg(long, default_value_t = false)]
+    delete_config: bool,
 }
 
 #[tokio::main]
@@ -51,18 +69,91 @@ async fn main() -> Result<()> {
 
     let config = Config::load(&args.config)?;
 
-    // 2. Run TUI
-    let mut app = App::new(config.clone());
-    app.run()?;
+    let mut selected_repos = HashSet::new();
+    let mut root_path_str = config.root_path.clone().unwrap_or_else(|| "..".to_string());
 
-    if !app.confirmed {
-        println!("Execution cancelled.");
-        return Ok(())
+    if !args.headless {
+        // 2. Run TUI
+        let mut app = App::new(config.clone());
+        app.run()?;
+
+        if app.run_in_background {
+            // Generate temp config with selected repos
+            let timestamp = chrono::Local::now().format("%Y%m%d%H%M%S").to_string();
+            let temp_config_path = PathBuf::from(format!("config_bg_{}.json", timestamp));
+            
+            // Filter config
+            let mut new_groups = Vec::new();
+            for (g_idx, group) in config.groups.iter().enumerate() {
+                let mut new_repos = Vec::new();
+                for (r_idx, repo) in group.repositories.iter().enumerate() {
+                    if app.selected_repos.contains(&(g_idx, r_idx)) {
+                        new_repos.push(repo.clone());
+                    }
+                }
+                if !new_repos.is_empty() {
+                    new_groups.push(config::Group { repositories: new_repos });
+                }
+            }
+            
+            let new_config = Config {
+                groups: new_groups,
+                root_path: Some(app.root_path.clone()),
+                branch: config.branch.clone(),
+                commit_message: config.commit_message.clone(),
+            };
+            
+            let json = serde_json::to_string_pretty(&new_config)?;
+            std::fs::write(&temp_config_path, json)?;
+            
+            println!("Starting background process...");
+            
+            // Spawn detached process
+            let exe = std::env::current_exe()?;
+            
+            // Redirect output to log file
+            let log_file = File::create("deployer.log")?;
+            
+            let mut cmd = Command::new(exe);
+            cmd.arg("--config")
+               .arg(&temp_config_path)
+               .arg("--headless")
+               .arg("--delete-config")
+               .stdout(Stdio::from(log_file.try_clone()?))
+               .stderr(Stdio::from(log_file));
+
+            #[cfg(target_os = "windows")]
+            {
+                const DETACHED_PROCESS: u32 = 0x00000008;
+                const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+                cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+            }
+
+            cmd.spawn()?;
+                
+            println!("Background process started. Logs redirected to deployer.log");
+            return Ok(());
+        }
+
+        if !app.confirmed {
+            println!("Execution cancelled.");
+            return Ok(())
+        }
+        
+        selected_repos = app.selected_repos;
+        root_path_str = app.root_path;
+    } else {
+        // Headless mode: select all repos in the config
+        for (g_idx, group) in config.groups.iter().enumerate() {
+            for (r_idx, _) in group.repositories.iter().enumerate() {
+                selected_repos.insert((g_idx, r_idx));
+            }
+        }
     }
 
     println!("Starting execution...");
     
-    let root_path = PathBuf::from(&app.root_path);
+    let root_path = PathBuf::from(&root_path_str);
     let mut handles = Vec::new();
 
     // Iterate through groups
@@ -74,7 +165,7 @@ async fn main() -> Result<()> {
         let mut group_tasks = Vec::new();
         
         for (r_idx, repo) in group.repositories.iter().enumerate() {
-            if app.selected_repos.contains(&(g_idx, r_idx)) {
+            if selected_repos.contains(&(g_idx, r_idx)) {
                 group_has_selected = true;
                 if repo.delta > group_max_delta {
                     group_max_delta = repo.delta;
@@ -108,33 +199,44 @@ async fn main() -> Result<()> {
         handles.extend(group_tasks);
 
         if group_has_selected {
-            // Check if there are more groups with selected items
-            let mut more_groups_exist = false;
-            for next_g_idx in (g_idx + 1)..config.groups.len() {
-                if let Some(next_group) = config.groups.get(next_g_idx) {
-                    for (next_r_idx, _) in next_group.repositories.iter().enumerate() {
-                        if app.selected_repos.contains(&(next_g_idx, next_r_idx)) {
-                            more_groups_exist = true;
-                            break;
-                        }
-                    }
+            // Check if we should wait
+            let delay_seconds = group_max_delta * 60.0;
+            if delay_seconds > 0.0 {
+                let start_wait = Instant::now();
+                let duration = Duration::from_secs_f64(delay_seconds);
+                
+                // Enable raw mode for input detection
+                if !args.headless {
+                    enable_raw_mode()?;
                 }
-                if more_groups_exist { break; }
-            }
-
-            if more_groups_exist {
-                let delay_seconds = group_max_delta * 60.0;
-                if delay_seconds > 0.0 {
-                    let start_wait = Instant::now();
-                    let duration = Duration::from_secs_f64(delay_seconds);
+                
+                let mut skipped = false;
+                while start_wait.elapsed() < duration {
+                    let remaining = duration - start_wait.elapsed();
+                    print!("\rWaiting {:.0} seconds before next group... (press 's' to skip)   ", remaining.as_secs_f64().ceil());
+                    std::io::stdout().flush()?;
                     
-                    while start_wait.elapsed() < duration {
-                        let remaining = duration - start_wait.elapsed();
-                        print!("\rWaiting {:.0} seconds before next group...   ", remaining.as_secs_f64().ceil());
-                        std::io::stdout().flush()?;
+                    if !args.headless {
+                        if event::poll(Duration::from_millis(100))? {
+                            if let Event::Key(key) = event::read()? {
+                                if key.code == KeyCode::Char('s') {
+                                    skipped = true;
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
                         sleep(Duration::from_millis(100)).await;
                     }
-                    println!(); // New line after wait is done
+                }
+                
+                if !args.headless {
+                    disable_raw_mode()?;
+                }
+                
+                println!(); // New line after wait is done
+                if skipped {
+                    println!("Skipped wait.");
                 }
             }
         }
@@ -143,6 +245,10 @@ async fn main() -> Result<()> {
     // Wait for all tasks to complete
     for handle in handles {
         let _ = handle.await;
+    }
+
+    if args.delete_config {
+        std::fs::remove_file(&args.config)?;
     }
 
     println!("All tasks completed.");

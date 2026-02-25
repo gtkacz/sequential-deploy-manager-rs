@@ -24,6 +24,7 @@ pub struct App {
     pub view: View,
     pub root_path: String,
     pub confirmed: bool,
+    pub run_in_background: bool,
     pub error_message: Option<String>,
 }
 
@@ -46,6 +47,7 @@ impl App {
             view: View::Selection,
             root_path: root,
             confirmed: false,
+            run_in_background: false,
             error_message: None,
         }
     }
@@ -86,6 +88,16 @@ impl App {
                             KeyCode::Up => self.move_cursor_up(),
                             KeyCode::Char(' ') => self.toggle_selection(),
                             KeyCode::Char('c') => self.selected_repos.clear(),
+                            KeyCode::Char('b') => {
+                                if !self.selected_repos.is_empty() {
+                                    self.run_in_background = true;
+                                    self.confirmed = true;
+                                    return Ok(());
+                                } else {
+                                    self.error_message = Some("No repositories selected. Please select at least one.".to_string());
+                                    self.view = View::Error;
+                                }
+                            },
                             KeyCode::Enter => {
                                 if self.selected_repos.is_empty() {
                                     self.error_message = Some("No repositories selected. Please select at least one.".to_string());
@@ -348,7 +360,7 @@ impl App {
 
     fn render_footer(&self, f: &mut ratatui::Frame, area: Rect) {
         let help_text = match self.view {
-            View::Selection => "↑/↓: Navigate | Space: Toggle | c: Clear All | Enter: Next | q: Quit | Ctrl+c: Exit",
+            View::Selection => "↑/↓: Navigate | Space: Toggle | c: Clear All | b: Background | Enter: Next | q: Quit | Ctrl+c: Exit",
             View::RootPrompt => "Enter: Confirm | Esc: Back | Ctrl+c: Exit",
             View::Confirmation => "y/Enter: Yes | n: No | Esc: Back | Ctrl+c: Exit",
             View::Error => "Enter/Esc: Dismiss | Ctrl+c: Exit",
