@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::execute;
+use crossterm::style::Stylize;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -79,7 +80,7 @@ impl App {
         terminal.show_cursor()?;
 
         if let Err(err) = res {
-            println!("{:?}", err);
+            eprintln!("{}", format!("{:?}", err).red());
         }
 
         Ok(())

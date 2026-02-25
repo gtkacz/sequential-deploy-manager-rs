@@ -9,6 +9,7 @@ use std::fs::File;
 use std::collections::HashSet;
 use crossterm::{
     event::{self, Event, KeyCode},
+    style::Stylize,
     terminal::{enable_raw_mode, disable_raw_mode},
 };
 
@@ -46,7 +47,7 @@ async fn main() -> Result<()> {
     // 1. Load Config
     // Check if config file exists, if not create a dummy one for demo purposes
     if !args.config.exists() {
-        println!("Config file not found at {:?}. Creating a sample config.json...", args.config);
+        println!("{}", format!("Config file not found at {:?}. Creating a sample config.json...", args.config).yellow());
         let sample_config = r#"{
   "groups": [
     {
@@ -114,7 +115,7 @@ async fn main() -> Result<()> {
             let json = serde_json::to_string_pretty(&new_config)?;
             std::fs::write(&temp_config_path, json)?;
             
-            println!("Starting background process...");
+            println!("{}", "Starting background process...".blue());
             
             // Spawn detached process
             let exe = std::env::current_exe()?;
@@ -139,12 +140,12 @@ async fn main() -> Result<()> {
 
             cmd.spawn()?;
                 
-            println!("Background process started. Logs redirected to deployer.log");
+            println!("{}", "Background process started. Logs redirected to deployer.log".green());
             return Ok(());
         }
 
         if !app.confirmed {
-            println!("Execution cancelled.");
+            println!("{}", "Execution cancelled.".red());
             return Ok(())
         }
         
@@ -163,7 +164,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    println!("Starting execution...");
+    println!("{}", "Starting execution...".blue());
     
     let root_path = PathBuf::from(&root_path_str);
     let mut handles = Vec::new();
@@ -192,21 +193,21 @@ async fn main() -> Result<()> {
 
                 // Check existence - already validated in TUI but good to check again
                 if !Git::check_exists(&repo_path) {
-                    eprintln!("Warning: Repository {} does not exist at {:?}", repo_name, repo_path);
+                    eprintln!("{}", format!("Warning: Repository {} does not exist at {:?}", repo_name, repo_path).yellow());
                     continue;
                 }
 
-                println!("Spawning task for {}", repo_name);
+                println!("{} {}", "Spawning task for".magenta(), repo_name.as_str().cyan());
                 
                 let handle = tokio::spawn(async move {
                     if is_dry_run {
-                        println!("Dry run for {}: Skipping git operations.", repo_name);
+                        println!("{} {}: {}", "Dry run for".yellow(), repo_name.as_str().cyan(), "Skipping git operations.".yellow());
                         return;
                     }
-                    println!("Running {}", repo_name);
+                    println!("{} {}", "Running".blue(), repo_name.as_str().cyan());
                     match Git::run_deploy(&repo_path_clone, &branch_name, &commit_msg) {
-                        Ok(_) => println!("Successfully deployed {}", repo_name),
-                        Err(e) => eprintln!("Failed to deploy {}: {:?}", repo_name, e),
+                        Ok(_) => println!("{} {}", "Successfully deployed".green(), repo_name.as_str().cyan()),
+                        Err(e) => eprintln!("{} {}: {:?}", "Failed to deploy".red(), repo_name.as_str().cyan(), e),
                     }
                 });
                 group_tasks.push(handle);
@@ -230,7 +231,7 @@ async fn main() -> Result<()> {
                 let mut skipped = false;
                 while start_wait.elapsed() < duration {
                     let remaining = duration - start_wait.elapsed();
-                    print!("\rWaiting {:.0} seconds before next group... (press 's' to skip)   ", remaining.as_secs_f64().ceil());
+                    print!("\r{} {:.0} {}   ", "Waiting".yellow(), remaining.as_secs_f64().ceil(), "seconds before next group... (press 's' to skip)".yellow());
                     std::io::stdout().flush()?;
                     
                     if !args.headless {
@@ -253,7 +254,7 @@ async fn main() -> Result<()> {
                 
                 println!(); // New line after wait is done
                 if skipped {
-                    println!("Skipped wait.");
+                    println!("{}", "Skipped wait.".yellow());
                 }
             }
         }
@@ -268,6 +269,6 @@ async fn main() -> Result<()> {
         std::fs::remove_file(&args.config)?;
     }
 
-    println!("All tasks completed.");
+    println!("{}", "All tasks completed.".green());
     Ok(())
 }
