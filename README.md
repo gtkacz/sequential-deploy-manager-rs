@@ -9,6 +9,8 @@ An interactive Rust-based tool for orchestrating multi-repository deployments wi
 - **Parallel & Staggered Execution**:
   - Repositories in the same group deploy **in parallel**.
   - Subsequent groups start only after the previous group's delay period (configurable per repository).
+- **Background Execution**: Run the deployment process in the background, freeing up your terminal.
+- **Timer Control**: Skip waiting periods manually if needed.
 - **Automated Git Workflow**: Automatically performs `checkout`, `pull`, `empty commit`, and `push` for each target.
 - **Safety Checks**: Validates repository existence before starting and requires explicit confirmation.
 - **Configurable**: Simple JSON configuration for repository grouping, branch names, and commit messages.
@@ -29,7 +31,7 @@ An interactive Rust-based tool for orchestrating multi-repository deployments wi
 
 ## Configuration (`config.json`)
 
-The tool is driven by a `config.json` file in the working directory:
+The tool is driven by a `config.json` file in the working directory, e.g.:
 
 ```json
 {
@@ -53,7 +55,8 @@ The tool is driven by a `config.json` file in the working directory:
 ```
 
 -   **`groups`**: Arrays of repositories. All repos in a group start simultaneously.
--   **`delta`**: Time in minutes to wait *after* this group starts before the *next* group can begin. The tool waits for the longest delta in the current group.
+-   **`delta`**: Time in minutes to wait *after* this group starts before the *next* group can begin (or after the last group finishes). The tool waits for the longest delta in the current group.
+-   **`dry`**: (Optional) If `true`, the repository will be part of the delta calculation but no git commands will be executed. Defaults to `false`. This can also be toggled at runtime using the `d` key.
 -   **`root_path`**: (Optional) The parent folder containing your repositories. Defaults to `..`.
 -   **`branch`**: (Optional) Defaults to `dev`.
 -   **`commit_message`**: (Optional) Defaults to `Force deploy of dev`.
@@ -64,7 +67,15 @@ The tool is driven by a `config.json` file in the working directory:
 | :--- | :--- |
 | `↑` / `↓` | Navigate list |
 | `Space` | Toggle selection |
+| `d` | Toggle dry run |
 | `c` | Clear all selections |
+| `b` | Run in background (detached) |
 | `Enter` | Proceed / Confirm |
 | `Esc` | Go back / Cancel |
 | `q` | Quit |
+
+### During Execution (Wait Period)
+
+| Key | Action |
+| :--- | :--- |
+| `s` | Skip remaining wait time |

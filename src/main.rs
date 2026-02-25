@@ -68,8 +68,9 @@ async fn main() -> Result<()> {
     }
 
     let config = Config::load(&args.config)?;
-
+    
     let mut selected_repos = HashSet::new();
+    let mut dry_repos = HashSet::new();
     let mut root_path_str = config.root_path.clone().unwrap_or_else(|| "..".to_string());
 
     if !args.headless {
@@ -88,7 +89,14 @@ async fn main() -> Result<()> {
                 let mut new_repos = Vec::new();
                 for (r_idx, repo) in group.repositories.iter().enumerate() {
                     if app.selected_repos.contains(&(g_idx, r_idx)) {
-                        new_repos.push(repo.clone());
+                        let mut r = repo.clone();
+                        // Inherit dry status from TUI selection
+                        if app.dry_repos.contains(&(g_idx, r_idx)) {
+                            r.dry = true;
+                        } else {
+                            r.dry = false;
+                        }
+                        new_repos.push(r);
                     }
                 }
                 if !new_repos.is_empty() {
@@ -141,12 +149,16 @@ async fn main() -> Result<()> {
         }
         
         selected_repos = app.selected_repos;
+        dry_repos = app.dry_repos;
         root_path_str = app.root_path;
     } else {
         // Headless mode: select all repos in the config
         for (g_idx, group) in config.groups.iter().enumerate() {
-            for (r_idx, _) in group.repositories.iter().enumerate() {
+            for (r_idx, repo) in group.repositories.iter().enumerate() {
                 selected_repos.insert((g_idx, r_idx));
+                if repo.dry {
+                    dry_repos.insert((g_idx, r_idx));
+                }
             }
         }
     }
@@ -176,7 +188,7 @@ async fn main() -> Result<()> {
                 let repo_name = repo.path.clone();
                 let branch_name = config.branch.clone();
                 let commit_msg = config.commit_message.clone();
-                let is_dry_run = repo.dry;
+                let is_dry_run = dry_repos.contains(&(g_idx, r_idx));
 
                 // Check existence - already validated in TUI but good to check again
                 if !Git::check_exists(&repo_path) {

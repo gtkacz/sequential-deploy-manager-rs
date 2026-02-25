@@ -19,6 +19,7 @@ use crate::git::Git;
 pub struct App {
     pub config: Config,
     pub selected_repos: HashSet<(usize, usize)>, // (group_idx, repo_idx)
+    pub dry_repos: HashSet<(usize, usize)>, // (group_idx, repo_idx)
     pub cursor_group: usize,
     pub cursor_repo: usize,
     pub view: View,
@@ -39,9 +40,21 @@ pub enum View {
 impl App {
     pub fn new(config: Config) -> Self {
         let root = config.root_path.clone().unwrap_or_else(|| "..".to_string());
+        let mut dry_repos = HashSet::new();
+        
+        // Initialize dry repos from config
+        for (g_idx, group) in config.groups.iter().enumerate() {
+            for (r_idx, repo) in group.repositories.iter().enumerate() {
+                if repo.dry {
+                    dry_repos.insert((g_idx, r_idx));
+                }
+            }
+        }
+
         Self {
             config,
             selected_repos: HashSet::new(),
+            dry_repos,
             cursor_group: 0,
             cursor_repo: 0,
             view: View::Selection,
@@ -87,6 +100,7 @@ impl App {
                             KeyCode::Down => self.move_cursor_down(),
                             KeyCode::Up => self.move_cursor_up(),
                             KeyCode::Char(' ') => self.toggle_selection(),
+                            KeyCode::Char('d') => self.toggle_dry(),
                             KeyCode::Char('c') => self.selected_repos.clear(),
                             KeyCode::Char('b') => {
                                 if !self.selected_repos.is_empty() {
@@ -205,6 +219,15 @@ impl App {
         }
     }
 
+    fn toggle_dry(&mut self) {
+        let key = (self.cursor_group, self.cursor_repo);
+        if self.dry_repos.contains(&key) {
+            self.dry_repos.remove(&key);
+        } else {
+            self.dry_repos.insert(key);
+        }
+    }
+
     fn ui(&self, f: &mut ratatui::Frame) {
         let main_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -249,7 +272,7 @@ impl App {
                     Style::default()
                 };
                 
-                let dry_label = if repo.dry { " (dry)" } else { "" };
+                let dry_label = if self.dry_repos.contains(&(g_idx, r_idx)) { " (dry)" } else { "" };
                 items.push(ListItem::new(Line::from(vec![
                     Span::styled(format!("  {} {}{} (delta: {})", symbol, repo.path, dry_label, repo.delta), style)
                 ])));
@@ -301,7 +324,7 @@ impl App {
                         "├──"
                     };
                     
-                    let dry_label = if repo.dry { " (dry)" } else { "" };
+                    let dry_label = if self.dry_repos.contains(&(g_idx, i)) { " (dry)" } else { "" };
                     graph_lines.push(ListItem::new(Line::from(vec![
                         Span::raw(format!("  {} ", connector)),
                         Span::styled(format!("{}{}", repo.path, dry_label), Style::default().fg(Color::White)),
@@ -362,7 +385,7 @@ impl App {
 
     fn render_footer(&self, f: &mut ratatui::Frame, area: Rect) {
         let help_text = match self.view {
-            View::Selection => "↑/↓: Navigate | Space: Toggle | c: Clear All | b: Background | Enter: Next | q: Quit | Ctrl+c: Exit",
+            View::Selection => "↑/↓: Navigate | Space: Toggle | d: Toggle Dry | c: Clear All | b: Background | Enter: Next | q: Quit | Ctrl+c: Exit",
             View::RootPrompt => "Enter: Confirm | Esc: Back | Ctrl+c: Exit",
             View::Confirmation => "y/Enter: Yes | n: No | Esc: Back | Ctrl+c: Exit",
             View::Error => "Enter/Esc: Dismiss | Ctrl+c: Exit",
