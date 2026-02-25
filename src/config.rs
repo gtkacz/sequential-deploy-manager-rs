@@ -6,6 +6,8 @@ use anyhow::Context;
 pub struct Repository {
     pub path: String,
     pub delta: f64,
+    #[serde(default)]
+    pub dry: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

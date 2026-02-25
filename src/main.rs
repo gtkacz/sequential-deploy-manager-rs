@@ -176,6 +176,7 @@ async fn main() -> Result<()> {
                 let repo_name = repo.path.clone();
                 let branch_name = config.branch.clone();
                 let commit_msg = config.commit_message.clone();
+                let is_dry_run = repo.dry;
 
                 // Check existence - already validated in TUI but good to check again
                 if !Git::check_exists(&repo_path) {
@@ -186,6 +187,10 @@ async fn main() -> Result<()> {
                 println!("Spawning task for {}", repo_name);
                 
                 let handle = tokio::spawn(async move {
+                    if is_dry_run {
+                        println!("Dry run for {}: Skipping git operations.", repo_name);
+                        return;
+                    }
                     println!("Running {}", repo_name);
                     match Git::run_deploy(&repo_path_clone, &branch_name, &commit_msg) {
                         Ok(_) => println!("Successfully deployed {}", repo_name),

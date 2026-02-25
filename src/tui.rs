@@ -249,8 +249,9 @@ impl App {
                     Style::default()
                 };
                 
+                let dry_label = if repo.dry { " (dry)" } else { "" };
                 items.push(ListItem::new(Line::from(vec![
-                    Span::styled(format!("  {} {} (delta: {})", symbol, repo.path, repo.delta), style)
+                    Span::styled(format!("  {} {}{} (delta: {})", symbol, repo.path, dry_label, repo.delta), style)
                 ])));
             }
         }
@@ -300,9 +301,10 @@ impl App {
                         "├──"
                     };
                     
+                    let dry_label = if repo.dry { " (dry)" } else { "" };
                     graph_lines.push(ListItem::new(Line::from(vec![
                         Span::raw(format!("  {} ", connector)),
-                        Span::styled(&repo.path, Style::default().fg(Color::White)),
+                        Span::styled(format!("{}{}", repo.path, dry_label), Style::default().fg(Color::White)),
                         Span::styled(format!(" (delta: {:.1}m)", repo.delta), Style::default().fg(Color::Gray)),
                     ])));
                 }
