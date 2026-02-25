@@ -6,13 +6,15 @@ use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::execute;
 use crossterm::style::Stylize;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+};
+use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Clear, Wrap};
-use ratatui::Terminal;
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
 
 use crate::config::Config;
 use crate::git::Git;
@@ -20,7 +22,7 @@ use crate::git::Git;
 pub struct App {
     pub config: Config,
     pub selected_repos: HashSet<(usize, usize)>, // (group_idx, repo_idx)
-    pub dry_repos: HashSet<(usize, usize)>, // (group_idx, repo_idx)
+    pub dry_repos: HashSet<(usize, usize)>,      // (group_idx, repo_idx)
     pub cursor_group: usize,
     pub cursor_repo: usize,
     pub view: View,
@@ -40,9 +42,9 @@ pub enum View {
 
 impl App {
     pub fn new(config: Config) -> Self {
-        let root = config.root_path.clone().unwrap_or_else(|| "..".to_string());
+        let root = config.root_path.clone().unwrap_or_else(|| ".".to_string());
         let mut dry_repos = HashSet::new();
-        
+
         // Initialize dry repos from config
         for (g_idx, group) in config.groups.iter().enumerate() {
             for (r_idx, repo) in group.repositories.iter().enumerate() {
@@ -92,7 +94,9 @@ impl App {
 
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                    if key.code == KeyCode::Char('c')
+                        && key.modifiers.contains(KeyModifiers::CONTROL)
+                    {
                         return Ok(());
                     }
                     match self.view {
@@ -109,18 +113,24 @@ impl App {
                                     self.confirmed = true;
                                     return Ok(());
                                 } else {
-                                    self.error_message = Some("No repositories selected. Please select at least one.".to_string());
+                                    self.error_message = Some(
+                                        "No repositories selected. Please select at least one."
+                                            .to_string(),
+                                    );
                                     self.view = View::Error;
                                 }
-                            },
+                            }
                             KeyCode::Enter => {
                                 if self.selected_repos.is_empty() {
-                                    self.error_message = Some("No repositories selected. Please select at least one.".to_string());
+                                    self.error_message = Some(
+                                        "No repositories selected. Please select at least one."
+                                            .to_string(),
+                                    );
                                     self.view = View::Error;
                                 } else {
                                     self.view = View::RootPrompt;
                                 }
-                            },
+                            }
                             _ => {}
                         },
                         View::RootPrompt => match key.code {
@@ -133,8 +143,10 @@ impl App {
                                 } else {
                                     self.view = View::Confirmation;
                                 }
-                            },
-                            KeyCode::Backspace => { self.root_path.pop(); },
+                            }
+                            KeyCode::Backspace => {
+                                self.root_path.pop();
+                            }
                             KeyCode::Char(c) => self.root_path.push(c),
                             _ => {}
                         },
@@ -142,7 +154,7 @@ impl App {
                             KeyCode::Enter | KeyCode::Esc => {
                                 self.error_message = None;
                                 self.view = View::RootPrompt;
-                            },
+                            }
                             _ => {}
                         },
                         View::Confirmation => match key.code {
@@ -150,7 +162,7 @@ impl App {
                             KeyCode::Char('y') | KeyCode::Enter => {
                                 self.confirmed = true;
                                 return Ok(());
-                            },
+                            }
                             KeyCode::Char('n') => self.view = View::Selection,
                             _ => {}
                         },
@@ -176,18 +188,23 @@ impl App {
         }
 
         if !missing.is_empty() {
-            return Err(format!("The following repositories were not found under '{}':\n{}", 
-                self.root_path, missing.join(", ")));
+            return Err(format!(
+                "The following repositories were not found under '{}':\n{}",
+                self.root_path,
+                missing.join(", ")
+            ));
         }
 
         Ok(())
     }
 
     fn move_cursor_down(&mut self) {
-        if self.config.groups.is_empty() { return; }
-        
+        if self.config.groups.is_empty() {
+            return;
+        }
+
         let current_group_len = self.config.groups[self.cursor_group].repositories.len();
-        
+
         if self.cursor_repo + 1 < current_group_len {
             self.cursor_repo += 1;
         } else {
@@ -255,46 +272,56 @@ impl App {
 
     fn render_list(&self, f: &mut ratatui::Frame, area: Rect) {
         let mut items = Vec::new();
-        
+
         for (g_idx, group) in self.config.groups.iter().enumerate() {
             items.push(ListItem::new(Span::styled(
                 format!("Group {}", g_idx + 1),
                 Style::default().add_modifier(Modifier::BOLD),
             )));
-            
+
             for (r_idx, repo) in group.repositories.iter().enumerate() {
                 let is_selected = self.selected_repos.contains(&(g_idx, r_idx));
                 let is_cursor = self.cursor_group == g_idx && self.cursor_repo == r_idx;
-                
+
                 let symbol = if is_selected { "●" } else { "○" };
                 let style = if is_cursor {
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default()
                 };
-                
-                let dry_label = if self.dry_repos.contains(&(g_idx, r_idx)) { " (dry)" } else { "" };
-                items.push(ListItem::new(Line::from(vec![
-                    Span::styled(format!("  {} {}{} (delta: {})", symbol, repo.path, dry_label, repo.delta), style)
-                ])));
+
+                let dry_label = if self.dry_repos.contains(&(g_idx, r_idx)) {
+                    " (dry)"
+                } else {
+                    ""
+                };
+                items.push(ListItem::new(Line::from(vec![Span::styled(
+                    format!(
+                        "  {} {}{} (delta: {})",
+                        symbol, repo.path, dry_label, repo.delta
+                    ),
+                    style,
+                )])));
             }
         }
 
-        let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title("Repositories"));
+        let list =
+            List::new(items).block(Block::default().borders(Borders::ALL).title("Repositories"));
         f.render_widget(list, area);
     }
 
     fn render_graph(&self, f: &mut ratatui::Frame, area: Rect) {
         let mut current_time = 0.0;
         let mut graph_lines = Vec::new();
-        
+
         let mut has_previous_group = false;
 
         for (g_idx, group) in self.config.groups.iter().enumerate() {
             let mut max_delta = 0.0;
             let mut group_selected_repos = Vec::new();
-            
+
             for (r_idx, repo) in group.repositories.iter().enumerate() {
                 if self.selected_repos.contains(&(g_idx, r_idx)) {
                     group_selected_repos.push(repo);
@@ -303,19 +330,21 @@ impl App {
                     }
                 }
             }
-            
+
             if !group_selected_repos.is_empty() {
                 if has_previous_group {
-                     graph_lines.push(ListItem::new(Span::styled(
+                    graph_lines.push(ListItem::new(Span::styled(
                         "  ↓",
-                        Style::default().fg(Color::DarkGray)
+                        Style::default().fg(Color::DarkGray),
                     )));
                 }
 
                 let group_header = format!("Group {} (Start: {:.1}m)", g_idx + 1, current_time);
                 graph_lines.push(ListItem::new(Span::styled(
                     group_header,
-                    Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan)
+                    Style::default()
+                        .add_modifier(Modifier::BOLD)
+                        .fg(Color::Cyan),
                 )));
 
                 for (i, repo) in group_selected_repos.iter().enumerate() {
@@ -324,43 +353,62 @@ impl App {
                     } else {
                         "├──"
                     };
-                    
-                    let dry_label = if self.dry_repos.contains(&(g_idx, i)) { " (dry)" } else { "" };
+
+                    let dry_label = if self.dry_repos.contains(&(g_idx, i)) {
+                        " (dry)"
+                    } else {
+                        ""
+                    };
                     graph_lines.push(ListItem::new(Line::from(vec![
                         Span::raw(format!("  {} ", connector)),
-                        Span::styled(format!("{}{}", repo.path, dry_label), Style::default().fg(Color::White)),
-                        Span::styled(format!(" (delta: {:.1}m)", repo.delta), Style::default().fg(Color::Gray)),
+                        Span::styled(
+                            format!("{}{}", repo.path, dry_label),
+                            Style::default().fg(Color::White),
+                        ),
+                        Span::styled(
+                            format!(" (delta: {:.1}m)", repo.delta),
+                            Style::default().fg(Color::Gray),
+                        ),
                     ])));
                 }
-                
+
                 current_time += max_delta;
                 has_previous_group = true;
             }
         }
-        
+
         if graph_lines.is_empty() {
-             graph_lines.push(ListItem::new(Span::styled(
+            graph_lines.push(ListItem::new(Span::styled(
                 "Select repositories to see the execution graph",
-                Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::ITALIC),
             )));
         } else {
             graph_lines.push(ListItem::new(""));
             graph_lines.push(ListItem::new(Span::styled(
                 format!("Total Estimated Time: {:.1} minutes", current_time),
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
             )));
         }
 
-        let list = List::new(graph_lines)
-            .block(Block::default().borders(Borders::ALL).title("Execution Graph"));
+        let list = List::new(graph_lines).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Execution Graph"),
+        );
         f.render_widget(list, area);
     }
 
     fn render_prompt(&self, f: &mut ratatui::Frame) {
         let area = centered_rect(60, 20, f.area());
         f.render_widget(Clear, area);
-        
-        let block = Block::default().title("Root Repository Path").borders(Borders::ALL);
+
+        let block = Block::default()
+            .title("Root Repository Path")
+            .borders(Borders::ALL);
         let text = Paragraph::new(self.root_path.clone()).block(block);
         f.render_widget(text, area);
     }
@@ -368,17 +416,24 @@ impl App {
     fn render_confirmation(&self, f: &mut ratatui::Frame) {
         let area = centered_rect(60, 20, f.area());
         f.render_widget(Clear, area);
-        
-        let block = Block::default().title("Confirm Execution").borders(Borders::ALL);
-        let text = Paragraph::new("Start execution? (y/n)").block(block).style(Style::default().fg(Color::Red));
+
+        let block = Block::default()
+            .title("Confirm Execution")
+            .borders(Borders::ALL);
+        let text = Paragraph::new("Start execution? (y/n)")
+            .block(block)
+            .style(Style::default().fg(Color::Red));
         f.render_widget(text, area);
     }
 
     fn render_error(&self, f: &mut ratatui::Frame) {
         let area = centered_rect(60, 40, f.area());
         f.render_widget(Clear, area);
-        
-        let block = Block::default().title("Error").borders(Borders::ALL).style(Style::default().fg(Color::Red));
+
+        let block = Block::default()
+            .title("Error")
+            .borders(Borders::ALL)
+            .style(Style::default().fg(Color::Red));
         let msg = self.error_message.clone().unwrap_or_default();
         let text = Paragraph::new(msg).block(block).wrap(Wrap { trim: true });
         f.render_widget(text, area);
@@ -386,7 +441,9 @@ impl App {
 
     fn render_footer(&self, f: &mut ratatui::Frame, area: Rect) {
         let help_text = match self.view {
-            View::Selection => "↑/↓: Navigate | Space: Toggle | d: Toggle Dry | c: Clear All | b: Background | Enter: Next | q: Quit | Ctrl+c: Exit",
+            View::Selection => {
+                "↑/↓: Navigate | Space: Toggle | d: Toggle Dry | c: Clear All | b: Background | Enter: Next | q: Quit | Ctrl+c: Exit"
+            }
             View::RootPrompt => "Enter: Confirm | Esc: Back | Ctrl+c: Exit",
             View::Confirmation => "y/Enter: Yes | n: No | Esc: Back | Ctrl+c: Exit",
             View::Error => "Enter/Esc: Dismiss | Ctrl+c: Exit",
@@ -402,19 +459,25 @@ impl App {
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ].as_ref())
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_y) / 2),
+                Constraint::Percentage(percent_y),
+                Constraint::Percentage((100 - percent_y) / 2),
+            ]
+            .as_ref(),
+        )
         .split(r);
 
     Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ].as_ref())
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_x) / 2),
+                Constraint::Percentage(percent_x),
+                Constraint::Percentage((100 - percent_x) / 2),
+            ]
+            .as_ref(),
+        )
         .split(popup_layout[1])[1]
 }

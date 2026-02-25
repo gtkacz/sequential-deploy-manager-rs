@@ -90,7 +90,7 @@ main() {
 
     success "deployer $version installed successfully!"
     echo ""
-    echo "  Run 'deployer config' to set up your API key."
+    echo "  Run 'deployer' to use the tool."
     echo "  Run 'deployer --help' for usage information."
 }
 

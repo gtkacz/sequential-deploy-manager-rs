@@ -51,7 +51,7 @@ if ($UserPath -notlike "*$InstallDir*") {
 Write-Success "`ndeployer $Version installed successfully!"
 Write-Host ""
 Write-Host "  Installed to: $InstallPath"
-Write-Host "  Run 'deployer config' to set up your API key."
+Write-Host "  Run 'deployer' to use the tool."
 Write-Host "  Run 'deployer --help' for usage information."
 Write-Host ""
 Write-Host "  Restart your terminal for PATH changes to take effect." -ForegroundColor Yellow

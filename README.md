@@ -15,11 +15,33 @@ An interactive Rust-based tool for orchestrating multi-repository deployments wi
 - **Safety Checks**: Validates repository existence before starting and requires explicit confirmation.
 - **Configurable**: Simple JSON configuration for repository grouping, branch names, and commit messages.
 
+## Installation
+
+### Linux / macOS (curl)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/gtkacz/sequential-deploy-manager-rs/main/scripts/install.sh | bash
+```
+
+This detects your OS and architecture, downloads the latest release binary to `/usr/local/bin`, and makes it executable. Set `INSTALL_DIR` to change the target:
+
+```sh
+INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/gtkacz/sequential-deploy-manager-rs/main/scripts/install.sh | bash
+```
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/gtkacz/sequential-deploy-manager-rs/main/scripts/install.ps1 | iex
+```
+
+This downloads the latest release to `%LOCALAPPDATA%\cgen\` and adds it to your user PATH.
+
 ## Usage
 
 1.  **Run the tool**:
     ```bash
-    cargo run
+    deployer
     ```
     *(If `config.json` is missing, a sample file will be created automatically.)*
 
