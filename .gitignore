@@ -21,4 +21,4 @@ target
 #.idea/
 
 # Custom
-config.json
+deployer.config.json

@@ -43,7 +43,7 @@ This downloads the latest release to `%LOCALAPPDATA%\cgen\` and adds it to your 
     ```bash
     deployer
     ```
-    *(If `config.json` is missing, a sample file will be created automatically.)*
+    *(If `deployer.config.json` is missing, a sample file will be created automatically.)*
 
 2.  **Interactive Steps**:
     -   **Select**: Use `Up`/`Down` to navigate and `Space` to toggle repositories.
@@ -51,9 +51,9 @@ This downloads the latest release to `%LOCALAPPDATA%\cgen\` and adds it to your 
     -   **Confirm**: Press `Enter` to proceed. You can verify/edit the root path for your repositories.
     -   **Deploy**: Confirm the prompt to start the automated deployment process.
 
-## Configuration (`config.json`)
+## Configuration (`deployer.config.json`)
 
-The tool is driven by a `config.json` file in the working directory, e.g.:
+The tool is driven by a `deployer.config.json` file in the working directory, e.g.:
 
 ```json
 {

@@ -92,8 +92,8 @@ impl App {
         loop {
             terminal.draw(|f| self.ui(f))?;
 
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
+            if let Event::Key(key) = event::read()?
+                && key.kind == KeyEventKind::Press {
                     if key.code == KeyCode::Char('c')
                         && key.modifiers.contains(KeyModifiers::CONTROL)
                     {
@@ -168,7 +168,6 @@ impl App {
                         },
                     }
                 }
-            }
         }
     }
 
@@ -177,14 +176,13 @@ impl App {
         let mut missing = Vec::new();
 
         for &(g_idx, r_idx) in &self.selected_repos {
-            if let Some(group) = self.config.groups.get(g_idx) {
-                if let Some(repo) = group.repositories.get(r_idx) {
+            if let Some(group) = self.config.groups.get(g_idx)
+                && let Some(repo) = group.repositories.get(r_idx) {
                     let path = root.join(&repo.path);
                     if !Git::check_exists(&path) {
                         missing.push(repo.path.clone());
                     }
                 }
-            }
         }
 
         if !missing.is_empty() {

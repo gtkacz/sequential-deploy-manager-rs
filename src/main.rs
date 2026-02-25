@@ -28,7 +28,7 @@ use tui::App;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Path to the configuration file
-    #[arg(short, long, default_value = "config.json")]
+    #[arg(short, long, default_value = "deployer.config.json")]
     config: PathBuf,
 
     /// Run in headless mode (no TUI)
@@ -50,7 +50,7 @@ async fn main() -> Result<()> {
         println!(
             "{}",
             format!(
-                "Config file not found at {:?}. Creating a sample config.json...",
+                "Config file not found at {:?}. Creating a sample deployer.config.json...",
                 args.config
             )
             .yellow()
@@ -99,11 +99,7 @@ async fn main() -> Result<()> {
                     if app.selected_repos.contains(&(g_idx, r_idx)) {
                         let mut r = repo.clone();
                         // Inherit dry status from TUI selection
-                        if app.dry_repos.contains(&(g_idx, r_idx)) {
-                            r.dry = true;
-                        } else {
-                            r.dry = false;
-                        }
+                        r.dry = app.dry_repos.contains(&(g_idx, r_idx));
                         new_repos.push(r);
                     }
                 }
@@ -277,13 +273,12 @@ async fn main() -> Result<()> {
                     std::io::stdout().flush()?;
 
                     if !args.headless {
-                        if event::poll(Duration::from_millis(100))? {
-                            if let Event::Key(key) = event::read()? {
-                                if key.code == KeyCode::Char('s') {
-                                    skipped = true;
-                                    break;
-                                }
-                            }
+                        if event::poll(Duration::from_millis(100))?
+                            && let Event::Key(key) = event::read()?
+                            && key.code == KeyCode::Char('s')
+                        {
+                            skipped = true;
+                            break;
                         }
                     } else {
                         sleep(Duration::from_millis(100)).await;
