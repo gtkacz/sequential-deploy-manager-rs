@@ -3,7 +3,7 @@ use std::io::{self, Stdout};
 use std::path::PathBuf;
 
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::backend::CrosstermBackend;
@@ -76,6 +76,9 @@ impl App {
 
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
+                    if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                        return Ok(());
+                    }
                     match self.view {
                         View::Selection => match key.code {
                             KeyCode::Char('q') => return Ok(()),
@@ -183,13 +186,19 @@ impl App {
     }
 
     fn ui(&self, f: &mut ratatui::Frame) {
-        let chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+        let main_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
             .split(f.area());
 
-        self.render_list(f, chunks[0]);
-        self.render_graph(f, chunks[1]);
+        let content_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+            .split(main_chunks[0]);
+
+        self.render_list(f, content_chunks[0]);
+        self.render_graph(f, content_chunks[1]);
+        self.render_footer(f, main_chunks[1]);
 
         if self.view == View::RootPrompt {
             self.render_prompt(f);
@@ -303,6 +312,20 @@ impl App {
         let msg = self.error_message.clone().unwrap_or_default();
         let text = Paragraph::new(msg).block(block).wrap(Wrap { trim: true });
         f.render_widget(text, area);
+    }
+
+    fn render_footer(&self, f: &mut ratatui::Frame, area: Rect) {
+        let help_text = match self.view {
+            View::Selection => "↑/↓: Navigate | Space: Toggle | Enter: Next | q: Quit | Ctrl+c: Exit",
+            View::RootPrompt => "Enter: Confirm | Esc: Back | Ctrl+c: Exit",
+            View::Confirmation => "y/Enter: Yes | n: No | Esc: Back | Ctrl+c: Exit",
+            View::Error => "Enter/Esc: Dismiss | Ctrl+c: Exit",
+        };
+
+        let footer = Paragraph::new(help_text)
+            .style(Style::default().fg(Color::Gray))
+            .block(Block::default().borders(Borders::ALL).title("Commands"));
+        f.render_widget(footer, area);
     }
 }
 

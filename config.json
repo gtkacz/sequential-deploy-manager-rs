@@ -1,0 +1,49 @@
+{
+    "groups": [
+        {
+            "repositories": [
+                {
+                    "path": "flxpoint-api",
+                    "delta": 5
+                }
+            ]
+        },
+        {
+            "repositories": [
+                {
+                    "path": "dmx-core",
+                    "delta": 5
+                }
+            ]
+        },
+        {
+            "repositories": [
+                {
+                    "path": "dmx-backend",
+                    "delta": 5
+                },
+                {
+                    "path": "dmx-automation",
+                    "delta": 5
+                },
+                {
+                    "path": "dmx-admin-backend",
+                    "delta": 5
+                }
+            ]
+        },
+        {
+            "repositories": [
+                {
+                    "path": "dmx-frontend",
+                    "delta": 10
+                },
+                {
+                    "path": "dmx-admin-frontend",
+                    "delta": 5
+                }
+            ]
+        }
+    ],
+    "root_path": ".."
+}
