@@ -1,5 +1,6 @@
+use std::io::Write;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use anyhow::Result;
 use clap::Parser;
 use tokio::time::sleep;
@@ -103,10 +104,34 @@ async fn main() -> Result<()> {
         handles.extend(group_tasks);
 
         if group_has_selected {
-            let delay_seconds = group_max_delta * 60.0;
-            if delay_seconds > 0.0 {
-                println!("Waiting {:.1} seconds before next group...", delay_seconds);
-                sleep(Duration::from_secs_f64(delay_seconds)).await;
+            // Check if there are more groups with selected items
+            let mut more_groups_exist = false;
+            for next_g_idx in (g_idx + 1)..config.groups.len() {
+                if let Some(next_group) = config.groups.get(next_g_idx) {
+                    for (next_r_idx, _) in next_group.repositories.iter().enumerate() {
+                        if app.selected_repos.contains(&(next_g_idx, next_r_idx)) {
+                            more_groups_exist = true;
+                            break;
+                        }
+                    }
+                }
+                if more_groups_exist { break; }
+            }
+
+            if more_groups_exist {
+                let delay_seconds = group_max_delta * 60.0;
+                if delay_seconds > 0.0 {
+                    let start_wait = Instant::now();
+                    let duration = Duration::from_secs_f64(delay_seconds);
+                    
+                    while start_wait.elapsed() < duration {
+                        let remaining = duration - start_wait.elapsed();
+                        print!("\rWaiting {:.0} seconds before next group...   ", remaining.as_secs_f64().ceil());
+                        std::io::stdout().flush()?;
+                        sleep(Duration::from_millis(100)).await;
+                    }
+                    println!(); // New line after wait is done
+                }
             }
         }
     }

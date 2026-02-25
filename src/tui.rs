@@ -85,7 +85,14 @@ impl App {
                             KeyCode::Down => self.move_cursor_down(),
                             KeyCode::Up => self.move_cursor_up(),
                             KeyCode::Char(' ') => self.toggle_selection(),
-                            KeyCode::Enter => self.view = View::RootPrompt,
+                            KeyCode::Enter => {
+                                if self.selected_repos.is_empty() {
+                                    self.error_message = Some("No repositories selected. Please select at least one.".to_string());
+                                    self.view = View::Error;
+                                } else {
+                                    self.view = View::RootPrompt;
+                                }
+                            },
                             _ => {}
                         },
                         View::RootPrompt => match key.code {
@@ -241,45 +248,69 @@ impl App {
     }
 
     fn render_graph(&self, f: &mut ratatui::Frame, area: Rect) {
-        let mut group_start_times = Vec::new();
         let mut current_time = 0.0;
-        
         let mut graph_lines = Vec::new();
         
+        let mut has_previous_group = false;
+
         for (g_idx, group) in self.config.groups.iter().enumerate() {
-            group_start_times.push(current_time);
-            
             let mut max_delta = 0.0;
-            let mut has_selected = false;
-            
-            let mut group_line = format!("Group {} (Start: {:.1}m): ", g_idx + 1, current_time);
+            let mut group_selected_repos = Vec::new();
             
             for (r_idx, repo) in group.repositories.iter().enumerate() {
                 if self.selected_repos.contains(&(g_idx, r_idx)) {
-                    has_selected = true;
+                    group_selected_repos.push(repo);
                     if repo.delta > max_delta {
                         max_delta = repo.delta;
                     }
-                    group_line.push_str(&format!("[{}] ", repo.path));
                 }
             }
             
-            if !has_selected {
-                group_line.push_str("(Skipped)");
-            }
-            
-            graph_lines.push(ListItem::new(group_line));
-            
-            if has_selected {
+            if !group_selected_repos.is_empty() {
+                if has_previous_group {
+                     graph_lines.push(ListItem::new(Span::styled(
+                        "  ↓",
+                        Style::default().fg(Color::DarkGray)
+                    )));
+                }
+
+                let group_header = format!("Group {} (Start: {:.1}m)", g_idx + 1, current_time);
+                graph_lines.push(ListItem::new(Span::styled(
+                    group_header,
+                    Style::default().add_modifier(Modifier::BOLD).fg(Color::Cyan)
+                )));
+
+                for (i, repo) in group_selected_repos.iter().enumerate() {
+                    let connector = if i == group_selected_repos.len() - 1 {
+                        "└──"
+                    } else {
+                        "├──"
+                    };
+                    
+                    graph_lines.push(ListItem::new(Line::from(vec![
+                        Span::raw(format!("  {} ", connector)),
+                        Span::styled(&repo.path, Style::default().fg(Color::White)),
+                        Span::styled(format!(" (delta: {:.1}m)", repo.delta), Style::default().fg(Color::Gray)),
+                    ])));
+                }
+                
                 current_time += max_delta;
+                has_previous_group = true;
             }
         }
         
-        graph_lines.push(ListItem::new(""));
-        graph_lines.push(ListItem::new(Span::styled(
-            format!("Total Estimated Time: {:.1} minutes", current_time),
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
-        )));
+        if graph_lines.is_empty() {
+             graph_lines.push(ListItem::new(Span::styled(
+                "Select repositories to see the execution graph",
+                Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)
+            )));
+        } else {
+            graph_lines.push(ListItem::new(""));
+            graph_lines.push(ListItem::new(Span::styled(
+                format!("Total Estimated Time: {:.1} minutes", current_time),
+                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            )));
+        }
 
         let list = List::new(graph_lines)
             .block(Block::default().borders(Borders::ALL).title("Execution Graph"));
