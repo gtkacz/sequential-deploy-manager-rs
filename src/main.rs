@@ -149,7 +149,6 @@ async fn main() -> Result<()> {
                 "{}",
                 "Background process started. Logs redirected to deployer.log".green()
             );
-            return Ok(());
         }
 
         if !app.confirmed {

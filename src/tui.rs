@@ -29,7 +29,10 @@ pub struct App {
     pub root_path: String,
     pub confirmed: bool,
     pub run_in_background: bool,
+    pub pending_background_mode: bool,
+    pub confirmation_selection: bool,
     pub error_message: Option<String>,
+    pub missing_repos_message: Option<String>,
 }
 
 #[derive(PartialEq)]
@@ -37,6 +40,7 @@ pub enum View {
     Selection,
     RootPrompt,
     Confirmation,
+    MissingReposConfirmation,
     Error,
 }
 
@@ -64,7 +68,10 @@ impl App {
             root_path: root,
             confirmed: false,
             run_in_background: false,
+            pending_background_mode: false,
+            confirmation_selection: true,
             error_message: None,
+            missing_repos_message: None,
         }
     }
 
@@ -109,9 +116,8 @@ impl App {
                             KeyCode::Char('c') => self.selected_repos.clear(),
                             KeyCode::Char('b') => {
                                 if !self.selected_repos.is_empty() {
-                                    self.run_in_background = true;
-                                    self.confirmed = true;
-                                    return Ok(());
+                                    self.pending_background_mode = true;
+                                    self.view = View::RootPrompt;
                                 } else {
                                     self.error_message = Some(
                                         "No repositories selected. Please select at least one."
@@ -128,6 +134,7 @@ impl App {
                                     );
                                     self.view = View::Error;
                                 } else {
+                                    self.pending_background_mode = false;
                                     self.view = View::RootPrompt;
                                 }
                             }
@@ -138,8 +145,8 @@ impl App {
                             KeyCode::Enter => {
                                 // Validate repositories
                                 if let Err(msg) = self.validate_repos() {
-                                    self.error_message = Some(msg);
-                                    self.view = View::Error;
+                                    self.missing_repos_message = Some(msg);
+                                    self.view = View::MissingReposConfirmation;
                                 } else {
                                     self.view = View::Confirmation;
                                 }
@@ -150,20 +157,50 @@ impl App {
                             KeyCode::Char(c) => self.root_path.push(c),
                             _ => {}
                         },
+                        View::MissingReposConfirmation => match key.code {
+                            KeyCode::Char('y') | KeyCode::Enter => {
+                                self.view = View::Confirmation;
+                            }
+                            KeyCode::Char('n') | KeyCode::Esc => {
+                                self.view = View::RootPrompt;
+                            }
+                            _ => {}
+                        },
                         View::Error => match key.code {
                             KeyCode::Enter | KeyCode::Esc => {
                                 self.error_message = None;
-                                self.view = View::RootPrompt;
+                                self.view = View::Selection;
                             }
                             _ => {}
                         },
                         View::Confirmation => match key.code {
                             KeyCode::Esc => self.view = View::RootPrompt,
-                            KeyCode::Char('y') | KeyCode::Enter => {
+                            KeyCode::Left | KeyCode::Right => {
+                                self.confirmation_selection = !self.confirmation_selection;
+                            }
+                            KeyCode::Enter => {
+                                if self.confirmation_selection {
+                                    self.confirmed = true;
+                                    if self.pending_background_mode {
+                                        self.run_in_background = true;
+                                    }
+                                    return Ok(());
+                                } else {
+                                    self.view = View::Selection;
+                                }
+                            }
+                            KeyCode::Char('y') => {
+                                self.confirmation_selection = true;
                                 self.confirmed = true;
+                                if self.pending_background_mode {
+                                    self.run_in_background = true;
+                                }
                                 return Ok(());
                             }
-                            KeyCode::Char('n') => self.view = View::Selection,
+                            KeyCode::Char('n') => {
+                                self.confirmation_selection = false;
+                                self.view = View::Selection;
+                            }
                             _ => {}
                         },
                     }
@@ -263,6 +300,8 @@ impl App {
             self.render_prompt(f);
         } else if self.view == View::Confirmation {
             self.render_confirmation(f);
+        } else if self.view == View::MissingReposConfirmation {
+            self.render_missing_repos_confirmation(f);
         } else if self.view == View::Error {
             self.render_error(f);
         }
@@ -418,9 +457,47 @@ impl App {
         let block = Block::default()
             .title("Confirm Execution")
             .borders(Borders::ALL);
-        let text = Paragraph::new("Start execution? (y/n)")
+        
+        let yes_style = if self.confirmation_selection {
+            Style::default().fg(Color::Black).bg(Color::Green)
+        } else {
+            Style::default().fg(Color::Green)
+        };
+
+        let no_style = if !self.confirmation_selection {
+            Style::default().fg(Color::Black).bg(Color::Red)
+        } else {
+            Style::default().fg(Color::Red)
+        };
+
+        let text = Line::from(vec![
+            Span::raw("Start execution?  "),
+            Span::styled(" Yes ", yes_style),
+            Span::raw("   "),
+            Span::styled(" No ", no_style),
+        ]);
+
+        let p = Paragraph::new(text)
             .block(block)
-            .style(Style::default().fg(Color::Red));
+            .style(Style::default().fg(Color::Yellow))
+            .alignment(ratatui::layout::Alignment::Center);
+            
+        f.render_widget(p, area);
+    }
+
+    fn render_missing_repos_confirmation(&self, f: &mut ratatui::Frame) {
+        let area = centered_rect(60, 40, f.area());
+        f.render_widget(Clear, area);
+
+        let block = Block::default()
+            .title("Missing Repositories")
+            .borders(Borders::ALL)
+            .style(Style::default().fg(Color::Yellow));
+            
+        let mut msg = self.missing_repos_message.clone().unwrap_or_default();
+        msg.push_str("\n\nDo you want to continue anyway? (y/n)");
+        
+        let text = Paragraph::new(msg).block(block).wrap(Wrap { trim: true });
         f.render_widget(text, area);
     }
 
@@ -443,7 +520,8 @@ impl App {
                 "↑/↓: Navigate | Space: Toggle | d: Toggle Dry | c: Clear All | b: Background | Enter: Next | q: Quit | Ctrl+c: Exit"
             }
             View::RootPrompt => "Enter: Confirm | Esc: Back | Ctrl+c: Exit",
-            View::Confirmation => "y/Enter: Yes | n: No | Esc: Back | Ctrl+c: Exit",
+            View::Confirmation => "←/→: Select | Enter: Confirm | Esc: Back | Ctrl+c: Exit",
+            View::MissingReposConfirmation => "y: Continue | n: Cancel | Esc: Back | Ctrl+c: Exit",
             View::Error => "Enter/Esc: Dismiss | Ctrl+c: Exit",
         };
 
