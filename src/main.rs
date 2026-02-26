@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use crossterm::{
-    event::{self, Event, KeyCode},
+    event::{self, Event, KeyCode, KeyEventKind},
     style::Stylize,
     terminal::{disable_raw_mode, enable_raw_mode},
 };
@@ -311,16 +311,18 @@ async fn main() -> Result<()> {
                     if !args.headless {
                         if event::poll(Duration::from_millis(100))? {
                             if let Event::Key(key) = event::read()? {
-                                match key.code {
-                                    KeyCode::Char('s') => {
-                                        skipped = true;
-                                        break;
+                                if key.kind == KeyEventKind::Press {
+                                    match key.code {
+                                        KeyCode::Char('s') => {
+                                            skipped = true;
+                                            break;
+                                        }
+                                        KeyCode::Char('q') | KeyCode::Esc => {
+                                            cancelled = true;
+                                            break;
+                                        }
+                                        _ => {}
                                     }
-                                    KeyCode::Char('q') | KeyCode::Esc => {
-                                        cancelled = true;
-                                        break;
-                                    }
-                                    _ => {}
                                 }
                             }
                         }
