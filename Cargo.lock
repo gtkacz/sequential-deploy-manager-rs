@@ -374,7 +374,7 @@ checksum = "5729f5117e208430e437df2f4843f5e5952997175992d1414f94c57d61e270b4"
 
 [[package]]
 name = "deployer"
-version = "0.1.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "chrono",

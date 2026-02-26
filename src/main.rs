@@ -175,9 +175,30 @@ async fn main() -> Result<()> {
     println!("{}", "Starting execution...".blue());
 
     let root_path = PathBuf::from(&root_path_str);
+    
+    // Calculate total active groups (groups with at least one selected repo)
+    let total_active_groups = config.groups.iter().enumerate().filter(|(g_idx, group)| {
+        group.repositories.iter().enumerate().any(|(r_idx, _)| {
+            selected_repos.contains(&(*g_idx, r_idx))
+        })
+    }).count();
+
+    let mut current_active_step = 0;
 
     // Iterate through groups
     for (g_idx, group) in config.groups.iter().enumerate() {
+        // Check if this group has any selected repos
+        let has_selected_repos = group.repositories.iter().enumerate().any(|(r_idx, _)| {
+            selected_repos.contains(&(g_idx, r_idx))
+        });
+
+        if !has_selected_repos {
+            continue;
+        }
+
+        current_active_step += 1;
+        let step_prefix = format!("[{}/{}]", current_active_step, total_active_groups);
+
         let mut group_max_delta = 0.0;
         let mut group_has_selected = false;
 
@@ -197,6 +218,7 @@ async fn main() -> Result<()> {
                 let branch_name = config.branch.clone();
                 let commit_msg = config.commit_message.clone();
                 let is_dry_run = dry_repos.contains(&(g_idx, r_idx));
+                let step_prefix_clone = step_prefix.clone();
 
                 // Check existence - already validated in TUI but good to check again
                 if !Git::check_exists(&repo_path) {
@@ -212,7 +234,8 @@ async fn main() -> Result<()> {
                 }
 
                 println!(
-                    "{} {}",
+                    "{} {} {}",
+                    step_prefix,
                     "Spawning task for".magenta(),
                     repo_name.as_str().cyan()
                 );
@@ -220,22 +243,25 @@ async fn main() -> Result<()> {
                 let handle = tokio::spawn(async move {
                     if is_dry_run {
                         println!(
-                            "{} {}: {}",
+                            "{} {} {}: {}",
+                            step_prefix_clone,
                             "Dry run for".yellow(),
                             repo_name.as_str().cyan(),
                             "Skipping git operations.".yellow()
                         );
                         return;
                     }
-                    println!("{} {}", "Running".blue(), repo_name.as_str().cyan());
+                    println!("{} {} {}", step_prefix_clone, "Running".blue(), repo_name.as_str().cyan());
                     match Git::run_deploy(&repo_path_clone, &branch_name, &commit_msg) {
                         Ok(_) => println!(
-                            "{} {}",
+                            "{} {} {}",
+                            step_prefix_clone,
                             "Successfully deployed".green(),
                             repo_name.as_str().cyan()
                         ),
                         Err(e) => eprintln!(
-                            "{} {}: {:?}",
+                            "{} {} {}: {:?}",
+                            step_prefix_clone,
                             "Failed to deploy".red(),
                             repo_name.as_str().cyan(),
                             e
@@ -267,11 +293,18 @@ async fn main() -> Result<()> {
                 let mut cancelled = false;
                 while start_wait.elapsed() < duration {
                     let remaining = duration - start_wait.elapsed();
+                    let wait_msg = if current_active_step == total_active_groups {
+                        "seconds remaining... (press 's' to skip, 'q' to cancel)"
+                    } else {
+                        "seconds before next group... (press 's' to skip, 'q' to cancel)"
+                    };
+
                     print!(
-                        "\r{} {:.0} {}   ",
+                        "\r{} {} {:.0} {}   ",
+                        step_prefix,
                         "Waiting".yellow(),
                         remaining.as_secs_f64().ceil(),
-                        "seconds before next group... (press 's' to skip, 'q' to cancel)".yellow()
+                        wait_msg.yellow()
                     );
                     std::io::stdout().flush()?;
 
