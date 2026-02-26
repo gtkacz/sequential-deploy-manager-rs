@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
     }
   ],
   "branch": "dev",
-  "commit_message": "Force deploy of dev"
+  "commit_message": "Force deploy"
 }"#;
         std::fs::write(&args.config, sample_config)?;
     }
@@ -175,7 +175,6 @@ async fn main() -> Result<()> {
     println!("{}", "Starting execution...".blue());
 
     let root_path = PathBuf::from(&root_path_str);
-    let mut handles = Vec::new();
 
     // Iterate through groups
     for (g_idx, group) in config.groups.iter().enumerate() {
@@ -247,7 +246,10 @@ async fn main() -> Result<()> {
             }
         }
 
-        handles.extend(group_tasks);
+        // Wait for all tasks in this group to complete
+        for handle in group_tasks {
+            let _ = handle.await;
+        }
 
         if group_has_selected {
             // Check if we should wait
@@ -262,23 +264,32 @@ async fn main() -> Result<()> {
                 }
 
                 let mut skipped = false;
+                let mut cancelled = false;
                 while start_wait.elapsed() < duration {
                     let remaining = duration - start_wait.elapsed();
                     print!(
                         "\r{} {:.0} {}   ",
                         "Waiting".yellow(),
                         remaining.as_secs_f64().ceil(),
-                        "seconds before next group... (press 's' to skip)".yellow()
+                        "seconds before next group... (press 's' to skip, 'q' to cancel)".yellow()
                     );
                     std::io::stdout().flush()?;
 
                     if !args.headless {
-                        if event::poll(Duration::from_millis(100))?
-                            && let Event::Key(key) = event::read()?
-                            && key.code == KeyCode::Char('s')
-                        {
-                            skipped = true;
-                            break;
+                        if event::poll(Duration::from_millis(100))? {
+                            if let Event::Key(key) = event::read()? {
+                                match key.code {
+                                    KeyCode::Char('s') => {
+                                        skipped = true;
+                                        break;
+                                    }
+                                    KeyCode::Char('q') | KeyCode::Esc => {
+                                        cancelled = true;
+                                        break;
+                                    }
+                                    _ => {}
+                                }
+                            }
                         }
                     } else {
                         sleep(Duration::from_millis(100)).await;
@@ -293,13 +304,12 @@ async fn main() -> Result<()> {
                 if skipped {
                     println!("{}", "Skipped wait.".yellow());
                 }
+                if cancelled {
+                    println!("{}", "Execution cancelled.".red());
+                    break;
+                }
             }
         }
-    }
-
-    // Wait for all tasks to complete
-    for handle in handles {
-        let _ = handle.await;
     }
 
     if args.delete_config {

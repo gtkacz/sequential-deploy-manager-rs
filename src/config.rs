@@ -30,7 +30,7 @@ fn default_branch() -> String {
 }
 
 fn default_commit_message() -> String {
-    "Force deploy of dev".to_string()
+    "Force deploy".to_string()
 }
 
 impl Config {

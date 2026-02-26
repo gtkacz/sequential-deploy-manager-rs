@@ -81,7 +81,7 @@ The tool is driven by a `deployer.config.json` file in the working directory, e.
 -   **`dry`**: (Optional) If `true`, the repository will be part of the delta calculation but no git commands will be executed. Defaults to `false`. This can also be toggled at runtime using the `d` key.
 -   **`root_path`**: (Optional) The parent folder containing your repositories. Defaults to `..`.
 -   **`branch`**: (Optional) Defaults to `dev`.
--   **`commit_message`**: (Optional) Defaults to `Force deploy of dev`.
+-   **`commit_message`**: (Optional) Defaults to `Force deploy`.
 
 ## Controls
 
@@ -101,3 +101,4 @@ The tool is driven by a `deployer.config.json` file in the working directory, e.
 | Key | Action |
 | :--- | :--- |
 | `s` | Skip remaining wait time |
+| `q` / `Esc` | Cancel execution |

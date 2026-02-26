@@ -34,15 +34,17 @@ impl Git {
     }
 
     fn run_command(cwd: &Path, program: &str, args: &[&str]) -> Result<()> {
-        let status = Command::new(program)
+        let output = Command::new(program)
             .args(args)
             .current_dir(cwd)
             .stdout(Stdio::null())
-            .status()
+            .stderr(Stdio::piped())
+            .output()
             .with_context(|| format!("Failed to execute {} {:?}", program, args))?;
 
-        if !status.success() {
-            anyhow::bail!("Command {} {:?} failed with status {}", program, args, status);
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!("Command {} {:?} failed with status {}:\n{}", program, args, output.status, stderr);
         }
 
         Ok(())
