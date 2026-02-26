@@ -45,6 +45,7 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     // 1. Load Config
+
     // Check if config file exists, if not create a dummy one for demo purposes
     if !args.config.exists() {
         println!(
@@ -149,6 +150,7 @@ async fn main() -> Result<()> {
                 "{}",
                 "Background process started. Logs redirected to deployer.log".green()
             );
+            return Ok(());
         }
 
         if !app.confirmed {
